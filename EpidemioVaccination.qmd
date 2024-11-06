@@ -1,0 +1,91 @@
+---
+title: "SIR Modell"
+format: html
+editor: visual
+---
+
+## SIR Model with vaccination
+
+```{r}
+##########################################################################
+#                                                                        #
+#                            Defining parameters                         #
+#                                                                        #
+##########################################################################
+ 
+infection_rate <- 0.000001 # probability to be infected after contact of individuals from susceptible group with people from infected group
+removal_rate <- 0.01 # probability with which individuals will be removed from infected to the removed compartment
+vax <- c(0,0.01) # value before and after the start of the vaccination campaign  
+VtI_rate <- 0.0000005 # probability that vaccinated individuals get infected 
+RtS_rate <- 0.001 # probability with which individuals go from removed to susceptible 
+tVax <- 30 # start of vaccination campaign at t = 30
+tMax <- 365 # 1 year of observation // observation time = simulation length
+I0 <- 1 # number of individuals infected at the beginning of observation 
+S0 <- 99999 # number of susceptible individuals at the beginning of the simulation 
+Npop <- 100000 # whole population size
+
+#"result" vectors --> (at each t=1-365,) how many individuals we have in each compartment
+S <- c(S0) #susceptible individuals 
+I <- c(I0) #infected individuals 
+R <- c(0) # Recovered individuals 
+V <- c(0) # vaccinated individuals 
+
+##########################################################################
+#                                                                        #
+#                            Starting the loop                           #
+#                                                                        #
+##########################################################################
+
+#SIR loop, (for each day out of 1 year, from day 1 to tMax=365) 
+for (i in 1:tMax) {
+  St <- tail(S, n=1L) #function to show the last value from S at each time step ==> St in the recursion equations (see report)
+  It <- tail(I, n=1L) #function to show the last value from I (at each time step)
+  Rt <- tail(R, n=1L) #function to show the last value from R (at each time step)
+  Vt <- tail(V, n=1L) #function to show the last value from V (at each time step)
+  
+  vax_rate <- ifelse(i <= tVax, vax[1], vax[2]) #proportion that get vaccinated daily, 
+  
+  S_temp <- St*(1-infection_rate*It-vax_rate)+RtS_rate*Rt #equation for S for each period of time. The compartment of susceptible individuals will be smaller because individuals get vaccinated or will be infected. We also add people who move from recovered to susceptible. (for more detailed explanation of equation see report part methods) Infection_rate means a, vax_rate means ϱ, RtS_rate is c (see report)
+  I_temp <- It*(1+infection_rate*St+VtI_rate*Vt-removal_rate) #equation for infected individuals where individuals get after being vaccinated or after getting an infection and minus the removal rate (for more detailed explanation of equation see report part methods) Infection_rate means a, VtI_rate is β, removal_rate is b (see report)
+  R_temp <- Rt*(1-RtS_rate)+removal_rate*It #recovered individuals, that get here after being infected. From here individuals go to S group. (for more detailed explanation of equation see report part methods) RtS_rate is c, removal_rate is b (see report) 
+  V_temp <- Vt*(1-VtI_rate*It)+vax_rate*St #group of individuals who get vaccinated. Will increase through vax_rate*St (because not all people will be vaccinated at once). The group will be smaller bacuse individuals can go from here to infected (when ptotection from vaccination is not perfect) VtI_rate is β, vax_rate means ϱ
+  # ==> S_temp, I_temp, R_temp and V_temp are the St+1, It+1, Vt+1 and Rt+1 in our recursion equations  
+
+  # (vectors that concatenated (added) the initial value with the value of S, I, R, V at each moment of time) "We store each value in the result vectors"
+  S <- c(S, S_temp) 
+  I <- c(I, I_temp)
+  R <- c(R, R_temp)
+  V <- c(V, V_temp)
+  # at the end of the simulation, the vectors will be c(S0, S1, S2, ..., S365) so the number of individuals in each compartment for each day of observation
+}
+
+##########################################################################
+#                                                                        #
+#                            Plotting a graph                            #
+#                                                                        #
+##########################################################################
+
+x11(); #open new window outside of RStudio
+#par(mfrow=c(3,1)) #function that plots a graph with 1 column and 3 rows
+time <- 1:(tMax+1) # "observation" time (, from the first day to the last)
+par(mar = c(4.1, 4.4, 4.1, 1.9)) #function in R to define the size of the plot margins c(bottom, left, top, right)
+
+
+plot(main="Vaccination with low Protection in fast Campaign", time,S,type="l",ylim=c(0,Npop),xlab= substitute(paste(bold("Time (days)"))),ylab= substitute(paste(bold("Nr. of individuals in S,R,I,V"))), col="darkgreen") #function to plot a graph in R, where main="Vaccination Perf. Protection OK Campaign" means the name of the graph, time -> x-axis data, S -> y-axis data (susceptible individuals), l means the line plot, ylim=c(0, Npop) sets the limit of the graph to Npop, xlab="Time (days)" gives a name to the x-axis, ylab="Number of individuals in each compartment" gives a name to the y-axis, substitute(paste(bold)) makes the letters bold, col="darkgreen" sets the colour to be darkgreen
+
+#next lines of the code add additional lines, where each colour represents one group of individuals (I,R,V) 
+lines(time, I, type="l",ylim=c(0,Npop),xlab="Time (days)",col="darkred")
+lines(time, R, type="l",ylim=c(0,Npop),xlab="Time (days)",col="navy")
+lines(time, V, type="l",ylim=c(0,Npop),xlab="Time (days)",col="black")
+
+max_height <- max(I) #to calculate the maximum of infected individuals and to name it max_hight 
+time_peak <- which(I==max(I)) #finction to show the day when the number of inf. individuals is the highest and to name it time_peak
+abline(v=time_peak, col="lightcyan4", lty=3) #This function adds one or more straight lines through the current plot. v means a vertical line at the moment of time_peak, the colour of the line is lightcyan4 and is dotted (lty=3 means that it has to be dotted)
+abline(h=max_height, col="lightcyan4", lty=3) #This function adds one or more straight lines through the current plot. h means the horizontal line at the moment of max_height, the colour of the line is lightcyan4 and the line is dotted (lty=3 means that the line has to be dotted)
+
+if(tVax < tMax){abline(v=tVax,lty=2,col="gray35"); x_leg=tVax/2; y_leg = Npop/2; legend(x=x_leg,y=y_leg, legend="Start of vaccination",text.col="gray35",bty="n")} #if statement checks if tVax is smaller than tMax, and if the answer is yes function goes further. In further code we give a command to draw a line when the vaccination campaign beginns (tVax), to make this line dashed (lty=2), the colour is grey35, we indicate our x-coordinate to be at the half of tVax, we indicate our y-coordinate to be at the half of our population size. At the end we add the text that indicates the beginning of vaccination with coordinates x_leg, y_leg, the color is dray35, bty="n" means to remove the box of the legend. 
+
+legend("top",legend=c('S','I','R','V'), horiz=TRUE, fill=c('darkgreen','darkred','navy','black'),bty='n') #here we wanted to add the legend to the whole plot on the right side, where each compartment (susceptible, infected, removed, vaccinated) has its own colour (darkgreen, darkred, navy, black) and is displayed horizontally in the graph
+
+options(scipen = 999) #this we use to prevent printing results in scientific notation 
+```
